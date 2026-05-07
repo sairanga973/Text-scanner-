@@ -85,6 +85,11 @@ img{
     word-break:break-word;
 }
 
+.status{
+    margin-top:10px;
+    color:#93c5fd;
+}
+
 </style>
 
 </head>
@@ -118,12 +123,11 @@ Login
 
 <div class="card">
 
-<h2>Select Image</h2>
+<h2>Gallery Image OCR</h2>
 
 <input
 type="file"
 accept="image/*"
-capture="environment"
 id="imageInput">
 
 <img id="previewImage">
@@ -138,7 +142,7 @@ Crop Image
 Scan Text
 </button>
 
-<p id="status"></p>
+<p class="status" id="status"></p>
 
 <textarea
 id="resultText"
@@ -229,7 +233,7 @@ document.getElementById("imageInput")
 
         previewImage.src = event.target.result;
 
-        // DESTROY OLD CROPPER
+        // REMOVE OLD CROPPER
 
         if(cropper){
 
@@ -237,12 +241,15 @@ document.getElementById("imageInput")
 
         }
 
-        // NEW CROPPER
+        // CREATE CROPPER
 
         cropper = new Cropper(previewImage,{
 
             viewMode:1,
-            autoCropArea:1
+            autoCropArea:1,
+            movable:true,
+            zoomable:true,
+            scalable:true
 
         });
 
@@ -267,8 +274,8 @@ function cropImage(){
     croppedCanvas =
     cropper.getCroppedCanvas({
 
-        width:1500,
-        height:1500
+        width:2000,
+        height:2000
 
     });
 
@@ -278,7 +285,7 @@ function cropImage(){
     cropper.destroy();
 
     document.getElementById("status").innerText =
-    "Image Cropped";
+    "Image Cropped Successfully";
 
 }
 
@@ -335,6 +342,8 @@ function saveScan(){
 
         return;
     }
+
+    // DUPLICATE CHECK
 
     let duplicate =
     scanHistory.find(
@@ -422,7 +431,7 @@ function loadHistory(){
 }
 
 
-// DELETE
+// DELETE HISTORY
 
 function deleteScan(index){
 
