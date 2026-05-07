@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 
 <meta charset="UTF-8">
@@ -16,15 +17,15 @@
 <style>
 
 body{
-    margin:0;
-    padding:20px;
     background:#0f172a;
     color:white;
     font-family:Arial;
+    margin:0;
+    padding:20px;
 }
 
 .container{
-    max-width:950px;
+    max-width:900px;
     margin:auto;
 }
 
@@ -35,59 +36,38 @@ body{
     margin-top:20px;
 }
 
-h1,h2{
-    margin-top:0;
-}
-
 input,textarea{
     width:100%;
     padding:12px;
-    margin-top:10px;
     border:none;
     border-radius:10px;
+    margin-top:10px;
     box-sizing:border-box;
 }
 
 textarea{
     height:180px;
-    resize:none;
 }
 
 button{
     padding:12px 20px;
-    margin-top:10px;
-    margin-right:10px;
     border:none;
     border-radius:10px;
     background:#2563eb;
     color:white;
     cursor:pointer;
-    font-size:15px;
+    margin-top:10px;
+    margin-right:10px;
 }
 
 button:hover{
     background:#1d4ed8;
 }
 
-video{
+video,img{
     width:100%;
-    border-radius:14px;
-    background:black;
+    border-radius:12px;
     margin-top:15px;
-}
-
-.camera-box{
-    position:relative;
-}
-
-.scan-area{
-    position:absolute;
-    border:3px solid red;
-    top:50%;
-    left:50%;
-    transform:translate(-50%,-50%);
-    pointer-events:none;
-    box-shadow:0 0 15px red;
 }
 
 canvas{
@@ -100,11 +80,6 @@ canvas{
     border-radius:10px;
     margin-top:10px;
     word-break:break-word;
-}
-
-.status{
-    margin-top:10px;
-    color:#93c5fd;
 }
 
 </style>
@@ -140,7 +115,7 @@ Login
 
 <div class="card">
 
-<h2>Live Camera OCR</h2>
+<h2>Camera OCR</h2>
 
 <button onclick="startCamera()">
 Open Camera
@@ -150,8 +125,6 @@ Open Camera
 Switch Camera
 </button>
 
-<div class="camera-box">
-
 <video
 id="video"
 autoplay
@@ -159,38 +132,19 @@ playsinline
 muted>
 </video>
 
-<div
-class="scan-area"
-id="scanArea">
-</div>
-
-</div>
-
-<br>
-
-<label>Scan Width</label>
-
-<input
-type="range"
-id="rangeWidth"
-min="150"
-max="700"
-value="350">
-
-<label>Scan Height</label>
-
-<input
-type="range"
-id="rangeHeight"
-min="100"
-max="500"
-value="180">
-
-<button onclick="scanText()">
-Scan Selected Area
+<button onclick="capturePhoto()">
+Capture Photo
 </button>
 
-<p class="status" id="status"></p>
+<img
+id="capturedImage"
+style="display:none;">
+
+<button onclick="scanText()">
+Scan Captured Photo
+</button>
+
+<p id="status"></p>
 
 <textarea
 id="resultText"
@@ -238,6 +192,12 @@ let scanHistory = JSON.parse(
 const video =
 document.getElementById("video");
 
+const canvas =
+document.getElementById("canvas");
+
+const capturedImage =
+document.getElementById("capturedImage");
+
 
 // LOGIN
 
@@ -248,7 +208,7 @@ function login(){
 
     if(email.trim() === ""){
 
-        alert("Please enter email");
+        alert("Enter Email");
 
         return;
     }
@@ -274,8 +234,6 @@ async function startCamera(){
 
     try{
 
-        // STOP OLD STREAM
-
         if(currentStream){
 
             currentStream.getTracks().forEach(track=>{
@@ -283,8 +241,6 @@ async function startCamera(){
             });
 
         }
-
-        // START CAMERA
 
         currentStream =
         await navigator.mediaDevices.getUserMedia({
@@ -324,7 +280,7 @@ async function startCamera(){
 
 // SWITCH CAMERA
 
-async function switchCamera(){
+function switchCamera(){
 
     if(currentFacingMode === "environment"){
 
@@ -341,133 +297,58 @@ async function switchCamera(){
 }
 
 
-// UPDATE SCAN AREA
+// CAPTURE PHOTO
 
-function updateScanArea(){
+function capturePhoto(){
 
-    let width =
-    document.getElementById("rangeWidth").value;
+    canvas.width = video.videoWidth;
 
-    let height =
-    document.getElementById("rangeHeight").value;
+    canvas.height = video.videoHeight;
 
-    let area =
-    document.getElementById("scanArea");
-
-    area.style.width = width + "px";
-
-    area.style.height = height + "px";
-
-}
-
-
-// RANGE EVENTS
-
-document.getElementById("rangeWidth")
-.addEventListener("input", updateScanArea);
-
-document.getElementById("rangeHeight")
-.addEventListener("input", updateScanArea);
-
-
-// HIGH QUALITY OCR SCAN
-
-async function scanText(){
-
-    if(!video.srcObject){
-
-        alert("Open camera first");
-
-        return;
-    }
-
-    const canvas =
-    document.getElementById("canvas");
-
-    const ctx =
-    canvas.getContext("2d");
-
-    let width = parseInt(
-        document.getElementById("rangeWidth").value
-    );
-
-    let height = parseInt(
-        document.getElementById("rangeHeight").value
-    );
-
-    // HIGH QUALITY SIZE
-
-    canvas.width = width * 2;
-
-    canvas.height = height * 2;
-
-    const sx =
-    (video.videoWidth / 2) - (width / 2);
-
-    const sy =
-    (video.videoHeight / 2) - (height / 2);
-
-    // DRAW IMAGE
+    const ctx = canvas.getContext("2d");
 
     ctx.drawImage(
 
         video,
 
-        sx,
-        sy,
-        width,
-        height,
-
-        0,
-        0,
-        width * 2,
-        height * 2
-
-    );
-
-    // IMAGE PROCESSING
-
-    let imageData =
-    ctx.getImageData(
         0,
         0,
         canvas.width,
         canvas.height
+
     );
 
-    let data = imageData.data;
+    const imageData =
+    canvas.toDataURL("image/png");
 
-    // BLACK & WHITE FILTER
+    capturedImage.src = imageData;
 
-    for(let i=0; i<data.length; i+=4){
-
-        let avg = (
-
-            data[i] +
-            data[i+1] +
-            data[i+2]
-
-        ) / 3;
-
-        let value = avg > 145 ? 255 : 0;
-
-        data[i] = value;
-        data[i+1] = value;
-        data[i+2] = value;
-
-    }
-
-    ctx.putImageData(imageData,0,0);
+    capturedImage.style.display = "block";
 
     document.getElementById("status").innerText =
-    "Scanning High Accuracy OCR...";
+    "Photo Captured";
 
-    // OCR
+}
+
+
+// OCR SCAN
+
+async function scanText(){
+
+    if(capturedImage.style.display === "none"){
+
+        alert("Capture photo first");
+
+        return;
+    }
+
+    document.getElementById("status").innerText =
+    "Scanning OCR...";
 
     const result =
     await Tesseract.recognize(
 
-        canvas,
+        capturedImage,
 
         'eng',
 
@@ -484,12 +365,12 @@ async function scanText(){
     cleanText;
 
     document.getElementById("status").innerText =
-    "Scan Completed";
+    "OCR Scan Completed";
 
 }
 
 
-// SAVE SCAN
+// SAVE HISTORY
 
 function saveScan(){
 
@@ -502,8 +383,6 @@ function saveScan(){
 
         return;
     }
-
-    // DUPLICATE CHECK
 
     let duplicate =
     scanHistory.find(
@@ -652,8 +531,6 @@ function exportExcel(){
 
 window.onload = ()=>{
 
-    updateScanArea();
-
     let savedUser =
     localStorage.getItem("ocrUser");
 
@@ -676,4 +553,5 @@ window.onload = ()=>{
 </script>
 
 </body>
+
 </html>
