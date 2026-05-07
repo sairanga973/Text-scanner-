@@ -11,7 +11,7 @@
 <!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-<!-- Excel Export -->
+<!-- Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
@@ -56,6 +56,7 @@ button{
     color:white;
     cursor:pointer;
     margin-top:10px;
+    margin-right:10px;
 }
 
 button:hover{
@@ -109,7 +110,7 @@ canvas{
 <h2>Email Login</h2>
 
 <input 
-type="email" 
+type="email"
 id="email"
 placeholder="Enter Email">
 
@@ -119,7 +120,7 @@ Login
 
 </div>
 
-<!-- MAIN APP -->
+<!-- APP -->
 
 <div id="appSection" style="display:none;">
 
@@ -131,16 +132,20 @@ Login
 Open Camera
 </button>
 
+<button onclick="switchCamera()">
+Switch Camera
+</button>
+
 <div class="camera-box">
 
-<video 
+<video
 id="video"
 autoplay
 playsinline
 muted>
 </video>
 
-<div 
+<div
 class="scan-area"
 id="scanArea">
 </div>
@@ -151,7 +156,7 @@ id="scanArea">
 
 <label>Scan Width</label>
 
-<input 
+<input
 type="range"
 id="rangeWidth"
 min="100"
@@ -160,7 +165,7 @@ value="300">
 
 <label>Scan Height</label>
 
-<input 
+<input
 type="range"
 id="rangeHeight"
 min="80"
@@ -173,7 +178,7 @@ Scan Selected Area
 
 <p id="status"></p>
 
-<textarea 
+<textarea
 id="resultText"
 placeholder="Scanned text appears here">
 </textarea>
@@ -208,6 +213,10 @@ Export Excel
 
 let currentUser = "";
 
+let currentFacingMode = "environment";
+
+let currentStream = null;
+
 let scanHistory = JSON.parse(
     localStorage.getItem("scanHistory")
 ) || [];
@@ -240,32 +249,54 @@ function login(){
     .style.display = "block";
 
     loadHistory();
+
 }
 
 
-// CAMERA START
+// START CAMERA
 
 async function startCamera(){
 
     try{
 
-        const stream =
+        // STOP OLD CAMERA
+
+        if(currentStream){
+
+            currentStream.getTracks().forEach(track => {
+
+                track.stop();
+
+            });
+
+        }
+
+        // START NEW CAMERA
+
+        currentStream =
         await navigator.mediaDevices.getUserMedia({
 
             video:{
-                facingMode:"environment"
+                facingMode:{
+                    exact: currentFacingMode
+                }
             },
 
             audio:false
 
         });
 
-        video.srcObject = stream;
+        video.srcObject = currentStream;
 
         await video.play();
 
         document.getElementById("status").innerText =
-        "Camera Started";
+
+        currentFacingMode === "environment"
+
+        ? "Back Camera Started"
+
+        : "Front Camera Started";
 
     }catch(error){
 
@@ -274,6 +305,25 @@ async function startCamera(){
         alert("Camera access failed");
 
     }
+
+}
+
+
+// SWITCH CAMERA
+
+async function switchCamera(){
+
+    if(currentFacingMode === "environment"){
+
+        currentFacingMode = "user";
+
+    }else{
+
+        currentFacingMode = "environment";
+
+    }
+
+    startCamera();
 
 }
 
@@ -294,6 +344,7 @@ function updateScanArea(){
     area.style.width = width + "px";
 
     area.style.height = height + "px";
+
 }
 
 
