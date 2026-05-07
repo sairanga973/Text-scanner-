@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>OCR Scanner</title>
+
+<!-- OCR Library -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<!-- Excel Export Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+
+body{
+    margin:0;
+    padding:20px;
+    background:#0f172a;
+    font-family:Arial;
+    color:white;
+}
+
+.container{
+    max-width:800px;
+    margin:auto;
+}
+
+.card{
+    background:#1e293b;
+    padding:20px;
+    border-radius:12px;
+    margin-top:20px;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    border:none;
+    border-radius:8px;
+}
+
+button{
+    padding:12px 20px;
+    margin-top:10px;
+    border:none;
+    border-radius:8px;
+    background:#2563eb;
+    color:white;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#1d4ed8;
+}
+
+textarea{
+    width:100%;
+    height:180px;
+    margin-top:15px;
+    border-radius:10px;
+    padding:10px;
+    border:none;
+}
+
+.history-item{
+    background:#334155;
+    padding:15px;
+    border-radius:10px;
+    margin-top:10px;
+}
+
+h1,h2{
+    margin-top:0;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>OCR Scanner</h1>
+
+<!-- LOGIN SECTION -->
+
+<div class="card" id="loginSection">
+
+<h2>Email Login</h2>
+
+<input 
+type="email" 
+id="email" 
+placeholder="Enter your email">
+
+<button onclick="login()">Login</button>
+
+</div>
+
+<!-- APP SECTION -->
+
+<div id="appSection" style="display:none;">
+
+<div class="card">
+
+<h2>Upload Image</h2>
+
+<input 
+type="file" 
+id="imageInput" 
+accept="image/*">
+
+<button onclick="scanText()">Scan Text</button>
+
+<p id="loading"></p>
+
+<textarea 
+id="resultText" 
+placeholder="Scanned text will appear here">
+</textarea>
+
+<button onclick="saveScan()">Save Scan</button>
+
+<button onclick="exportExcel()">Export Excel</button>
+
+</div>
+
+<!-- HISTORY -->
+
+<div class="card">
+
+<h2>Scan History</h2>
+
+<div id="history"></div>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+let currentUser = "";
+
+let scanHistory = JSON.parse(
+    localStorage.getItem("scanHistory")
+) || [];
+
+
+// LOGIN FUNCTION
+
+function login(){
+
+    let email = document.getElementById("email").value;
+
+    if(email === ""){
+
+        alert("Please enter email");
+
+        return;
+    }
+
+    currentUser = email;
+
+    localStorage.setItem("ocrUser", email);
+
+    document.getElementById("loginSection").style.display = "none";
+
+    document.getElementById("appSection").style.display = "block";
+
+    loadHistory();
+}
+
+
+// OCR FUNCTION
+
+async function scanText(){
+
+    const file = document.getElementById("imageInput").files[0];
+
+    if(!file){
+
+        alert("Please upload image");
+
+        return;
+    }
+
+    document.getElementById("loading").innerText = "Scanning...";
+
+    const result = await Tesseract.recognize(
+        file,
+        'eng'
+    );
+
+    document.getElementById("resultText").value = result.data.text;
+
+    document.getElementById("loading").innerText = "Scan Completed";
+}
+
+
+// SAVE HISTORY
+
+function saveScan(){
+
+    let text = document.getElementById("resultText").value;
+
+    if(text.trim() === ""){
+
+        alert("No text found");
+
+        return;
+    }
+
+    // DUPLICATE CHECK
+
+    let duplicate = scanHistory.find(
+        item => item.text === text
+    );
+
+    if(duplicate){
+
+        alert("Duplicate text already exists");
+
+        return;
+    }
+
+    let scanData = {
+
+        user: currentUser,
+
+        text: text,
+
+        date: new Date().toLocaleString()
+
+    };
+
+    scanHistory.push(scanData);
+
+    localStorage.setItem(
+        "scanHistory",
+        JSON.stringify(scanHistory)
+    );
+
+    loadHistory();
+
+    alert("Scan saved");
+}
+
+
+// LOAD HISTORY
+
+function loadHistory(){
+
+    let historyDiv = document.getElementById("history");
+
+    historyDiv.innerHTML = "";
+
+    scanHistory.forEach((item,index)=>{
+
+        let div = document.createElement("div");
+
+        div.className = "history-item";
+
+        div.innerHTML = `
+
+        <b>User:</b> ${item.user}<br><br>
+
+        <b>Date:</b> ${item.date}<br><br>
+
+        <b>Text:</b><br>
+        ${item.text}<br><br>
+
+        <button onclick="deleteScan(${index})">
+        Delete
+        </button>
+
+        `;
+
+        historyDiv.appendChild(div);
+
+    });
+
+}
+
+
+// DELETE HISTORY
+
+function deleteScan(index){
+
+    scanHistory.splice(index,1);
+
+    localStorage.setItem(
+        "scanHistory",
+        JSON.stringify(scanHistory)
+    );
+
+    loadHistory();
+}
+
+
+// EXPORT TO EXCEL
+
+function exportExcel(){
+
+    if(scanHistory.length === 0){
+
+        alert("No history available");
+
+        return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(scanHistory);
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "OCR History"
+    );
+
+    XLSX.writeFile(
+        workbook,
+        "OCR_History.xlsx"
+    );
+}
+
+
+// AUTO LOGIN
+
+window.onload = ()=>{
+
+    let savedUser = localStorage.getItem("ocrUser");
+
+    if(savedUser){
+
+        currentUser = savedUser;
+
+        document.getElementById("loginSection").style.display = "none";
+
+        document.getElementById("appSection").style.display = "block";
+
+        loadHistory();
+    }
+
+}
+
+</script>
+
+</body>
+</html>
