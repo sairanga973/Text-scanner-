@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,17 +11,17 @@
 <!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-<!-- Excel -->
+<!-- Excel Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
 
 body{
+    background:#0f172a;
+    color:white;
+    font-family:Arial;
     margin:0;
     padding:20px;
-    background:#0f172a;
-    font-family:Arial;
-    color:white;
 }
 
 .container{
@@ -33,6 +34,18 @@ body{
     padding:20px;
     border-radius:12px;
     margin-top:20px;
+}
+
+input, textarea{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    margin-top:10px;
+}
+
+textarea{
+    height:180px;
 }
 
 button{
@@ -49,36 +62,27 @@ button:hover{
     background:#1d4ed8;
 }
 
-input, textarea{
-    width:100%;
-    padding:12px;
-    border:none;
-    border-radius:8px;
-    margin-top:10px;
-}
-
-textarea{
-    height:180px;
-}
-
 video{
     width:100%;
     border-radius:12px;
     margin-top:15px;
 }
 
-canvas{
-    display:none;
+.camera-box{
+    position:relative;
 }
 
-#selectionBox{
+.scan-area{
     position:absolute;
     border:3px solid red;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
     pointer-events:none;
 }
 
-.camera-container{
-    position:relative;
+canvas{
+    display:none;
 }
 
 .history-item{
@@ -106,14 +110,16 @@ canvas{
 
 <input 
 type="email" 
-id="email" 
+id="email"
 placeholder="Enter Email">
 
-<button onclick="login()">Login</button>
+<button onclick="login()">
+Login
+</button>
 
 </div>
 
-<!-- APP -->
+<!-- MAIN APP -->
 
 <div id="appSection" style="display:none;">
 
@@ -122,32 +128,50 @@ placeholder="Enter Email">
 <h2>Live Camera OCR</h2>
 
 <button onclick="startCamera()">
-Start Camera
+Open Camera
 </button>
 
-<div class="camera-container">
+<div class="camera-box">
 
-<video id="video" autoplay playsinline></video>
+<video 
+id="video"
+autoplay
+playsinline
+muted>
+</video>
 
-<div id="selectionBox"></div>
+<div 
+class="scan-area"
+id="scanArea">
+</div>
 
 </div>
 
-<p>
-Select scanning range using sliders
-</p>
+<br>
 
-<label>Width</label>
-<input type="range" id="rangeWidth" min="100" max="600" value="300">
+<label>Scan Width</label>
 
-<label>Height</label>
-<input type="range" id="rangeHeight" min="100" max="400" value="150">
+<input 
+type="range"
+id="rangeWidth"
+min="100"
+max="600"
+value="300">
 
-<button onclick="scanSelectedArea()">
+<label>Scan Height</label>
+
+<input 
+type="range"
+id="rangeHeight"
+min="80"
+max="400"
+value="150">
+
+<button onclick="scanText()">
 Scan Selected Area
 </button>
 
-<p id="loading"></p>
+<p id="status"></p>
 
 <textarea 
 id="resultText"
@@ -170,7 +194,7 @@ Export Excel
 
 <div class="card">
 
-<h2>History</h2>
+<h2>Scan History</h2>
 
 <div id="history"></div>
 
@@ -184,18 +208,19 @@ Export Excel
 
 let currentUser = "";
 
-let stream;
-
 let scanHistory = JSON.parse(
     localStorage.getItem("scanHistory")
 ) || [];
+
+const video = document.getElementById("video");
 
 
 // LOGIN
 
 function login(){
 
-    let email = document.getElementById("email").value;
+    let email =
+    document.getElementById("email").value;
 
     if(email === ""){
 
@@ -208,76 +233,88 @@ function login(){
 
     localStorage.setItem("ocrUser", email);
 
-    document.getElementById("loginSection").style.display = "none";
+    document.getElementById("loginSection")
+    .style.display = "none";
 
-    document.getElementById("appSection").style.display = "block";
+    document.getElementById("appSection")
+    .style.display = "block";
 
     loadHistory();
 }
 
 
-// START CAMERA
+// CAMERA START
 
 async function startCamera(){
 
     try{
 
-        stream = await navigator.mediaDevices.getUserMedia({
-            video:true
+        const stream =
+        await navigator.mediaDevices.getUserMedia({
+
+            video:{
+                facingMode:"environment"
+            },
+
+            audio:false
+
         });
 
-        document.getElementById("video").srcObject = stream;
+        video.srcObject = stream;
 
-        updateSelectionBox();
+        await video.play();
+
+        document.getElementById("status").innerText =
+        "Camera Started";
 
     }catch(error){
 
-        alert("Camera access denied");
+        console.log(error);
+
+        alert("Camera access failed");
 
     }
+
 }
 
 
-// UPDATE SELECTION BOX
+// UPDATE SCAN AREA
 
-function updateSelectionBox(){
+function updateScanArea(){
 
-    let width = document.getElementById("rangeWidth").value;
+    let width =
+    document.getElementById("rangeWidth").value;
 
-    let height = document.getElementById("rangeHeight").value;
+    let height =
+    document.getElementById("rangeHeight").value;
 
-    let box = document.getElementById("selectionBox");
+    let area =
+    document.getElementById("scanArea");
 
-    box.style.width = width + "px";
+    area.style.width = width + "px";
 
-    box.style.height = height + "px";
-
-    box.style.left = "50%";
-
-    box.style.top = "50%";
-
-    box.style.transform = "translate(-50%, -50%)";
+    area.style.height = height + "px";
 }
 
 
 // RANGE EVENTS
 
 document.getElementById("rangeWidth")
-.addEventListener("input", updateSelectionBox);
+.addEventListener("input", updateScanArea);
 
 document.getElementById("rangeHeight")
-.addEventListener("input", updateSelectionBox);
+.addEventListener("input", updateScanArea);
 
 
-// SCAN SELECTED AREA
+// OCR SCAN
 
-async function scanSelectedArea(){
+async function scanText(){
 
-    const video = document.getElementById("video");
+    const canvas =
+    document.getElementById("canvas");
 
-    const canvas = document.getElementById("canvas");
-
-    const ctx = canvas.getContext("2d");
+    const ctx =
+    canvas.getContext("2d");
 
     let width = parseInt(
         document.getElementById("rangeWidth").value
@@ -291,35 +328,46 @@ async function scanSelectedArea(){
 
     canvas.height = height;
 
-    let startX = (video.videoWidth / 2) - (width / 2);
+    const sx =
+    (video.videoWidth / 2) - (width / 2);
 
-    let startY = (video.videoHeight / 2) - (height / 2);
+    const sy =
+    (video.videoHeight / 2) - (height / 2);
 
     ctx.drawImage(
+
         video,
-        startX,
-        startY,
+
+        sx,
+        sy,
         width,
         height,
+
         0,
         0,
         width,
         height
+
     );
 
-    document.getElementById("loading").innerText =
-    "Scanning Selected Area...";
+    document.getElementById("status").innerText =
+    "Scanning...";
 
-    const result = await Tesseract.recognize(
+    const result =
+    await Tesseract.recognize(
+
         canvas,
+
         'eng'
+
     );
 
     document.getElementById("resultText").value =
     result.data.text;
 
-    document.getElementById("loading").innerText =
+    document.getElementById("status").innerText =
     "Scan Completed";
+
 }
 
 
@@ -327,7 +375,8 @@ async function scanSelectedArea(){
 
 function saveScan(){
 
-    let text = document.getElementById("resultText").value;
+    let text =
+    document.getElementById("resultText").value;
 
     if(text.trim() === ""){
 
@@ -336,13 +385,16 @@ function saveScan(){
         return;
     }
 
-    let duplicate = scanHistory.find(
+    // DUPLICATE CHECK
+
+    let duplicate =
+    scanHistory.find(
         item => item.text === text
     );
 
     if(duplicate){
 
-        alert("Duplicate already exists");
+        alert("Duplicate text already exists");
 
         return;
     }
@@ -366,7 +418,8 @@ function saveScan(){
 
     loadHistory();
 
-    alert("Saved");
+    alert("Saved Successfully");
+
 }
 
 
@@ -374,13 +427,15 @@ function saveScan(){
 
 function loadHistory(){
 
-    let historyDiv = document.getElementById("history");
+    let historyDiv =
+    document.getElementById("history");
 
     historyDiv.innerHTML = "";
 
     scanHistory.forEach((item,index)=>{
 
-        let div = document.createElement("div");
+        let div =
+        document.createElement("div");
 
         div.className = "history-item";
 
@@ -406,7 +461,7 @@ function loadHistory(){
 }
 
 
-// DELETE
+// DELETE HISTORY
 
 function deleteScan(index){
 
@@ -418,6 +473,7 @@ function deleteScan(index){
     );
 
     loadHistory();
+
 }
 
 
@@ -427,7 +483,7 @@ function exportExcel(){
 
     if(scanHistory.length === 0){
 
-        alert("No history");
+        alert("No history found");
 
         return;
     }
@@ -448,12 +504,15 @@ function exportExcel(){
         workbook,
         "OCR_History.xlsx"
     );
+
 }
 
 
 // AUTO LOGIN
 
 window.onload = ()=>{
+
+    updateScanArea();
 
     let savedUser =
     localStorage.getItem("ocrUser");
@@ -469,6 +528,7 @@ window.onload = ()=>{
         .style.display = "block";
 
         loadHistory();
+
     }
 
 }
@@ -476,4 +536,5 @@ window.onload = ()=>{
 </script>
 
 </body>
+
 </html>
