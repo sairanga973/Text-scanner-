@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
 
 <meta charset="UTF-8">
@@ -17,46 +16,53 @@
 <style>
 
 body{
+    margin:0;
+    padding:20px;
     background:#0f172a;
     color:white;
     font-family:Arial;
-    margin:0;
-    padding:20px;
 }
 
 .container{
-    max-width:900px;
+    max-width:950px;
     margin:auto;
 }
 
 .card{
     background:#1e293b;
     padding:20px;
-    border-radius:12px;
+    border-radius:14px;
     margin-top:20px;
 }
 
-input, textarea{
+h1,h2{
+    margin-top:0;
+}
+
+input,textarea{
     width:100%;
     padding:12px;
-    border:none;
-    border-radius:8px;
     margin-top:10px;
+    border:none;
+    border-radius:10px;
+    box-sizing:border-box;
 }
 
 textarea{
     height:180px;
+    resize:none;
 }
 
 button{
     padding:12px 20px;
+    margin-top:10px;
+    margin-right:10px;
     border:none;
-    border-radius:8px;
+    border-radius:10px;
     background:#2563eb;
     color:white;
     cursor:pointer;
-    margin-top:10px;
-    margin-right:10px;
+    font-size:15px;
 }
 
 button:hover{
@@ -65,7 +71,8 @@ button:hover{
 
 video{
     width:100%;
-    border-radius:12px;
+    border-radius:14px;
+    background:black;
     margin-top:15px;
 }
 
@@ -80,6 +87,7 @@ video{
     left:50%;
     transform:translate(-50%,-50%);
     pointer-events:none;
+    box-shadow:0 0 15px red;
 }
 
 canvas{
@@ -91,6 +99,12 @@ canvas{
     padding:15px;
     border-radius:10px;
     margin-top:10px;
+    word-break:break-word;
+}
+
+.status{
+    margin-top:10px;
+    color:#93c5fd;
 }
 
 </style>
@@ -109,7 +123,7 @@ canvas{
 
 <h2>Email Login</h2>
 
-<input 
+<input
 type="email"
 id="email"
 placeholder="Enter Email">
@@ -159,24 +173,24 @@ id="scanArea">
 <input
 type="range"
 id="rangeWidth"
-min="100"
-max="600"
-value="300">
+min="150"
+max="700"
+value="350">
 
 <label>Scan Height</label>
 
 <input
 type="range"
 id="rangeHeight"
-min="80"
-max="400"
-value="150">
+min="100"
+max="500"
+value="180">
 
 <button onclick="scanText()">
 Scan Selected Area
 </button>
 
-<p id="status"></p>
+<p class="status" id="status"></p>
 
 <textarea
 id="resultText"
@@ -221,7 +235,8 @@ let scanHistory = JSON.parse(
     localStorage.getItem("scanHistory")
 ) || [];
 
-const video = document.getElementById("video");
+const video =
+document.getElementById("video");
 
 
 // LOGIN
@@ -231,9 +246,9 @@ function login(){
     let email =
     document.getElementById("email").value;
 
-    if(email === ""){
+    if(email.trim() === ""){
 
-        alert("Enter Email");
+        alert("Please enter email");
 
         return;
     }
@@ -259,27 +274,25 @@ async function startCamera(){
 
     try{
 
-        // STOP OLD CAMERA
+        // STOP OLD STREAM
 
         if(currentStream){
 
-            currentStream.getTracks().forEach(track => {
-
+            currentStream.getTracks().forEach(track=>{
                 track.stop();
-
             });
 
         }
 
-        // START NEW CAMERA
+        // START CAMERA
 
         currentStream =
         await navigator.mediaDevices.getUserMedia({
 
             video:{
-                facingMode:{
-                    exact: currentFacingMode
-                }
+                facingMode: currentFacingMode,
+                width:{ ideal:1920 },
+                height:{ ideal:1080 }
             },
 
             audio:false
@@ -357,9 +370,16 @@ document.getElementById("rangeHeight")
 .addEventListener("input", updateScanArea);
 
 
-// OCR SCAN
+// HIGH QUALITY OCR SCAN
 
 async function scanText(){
+
+    if(!video.srcObject){
+
+        alert("Open camera first");
+
+        return;
+    }
 
     const canvas =
     document.getElementById("canvas");
@@ -375,15 +395,19 @@ async function scanText(){
         document.getElementById("rangeHeight").value
     );
 
-    canvas.width = width;
+    // HIGH QUALITY SIZE
 
-    canvas.height = height;
+    canvas.width = width * 2;
+
+    canvas.height = height * 2;
 
     const sx =
     (video.videoWidth / 2) - (width / 2);
 
     const sy =
     (video.videoHeight / 2) - (height / 2);
+
+    // DRAW IMAGE
 
     ctx.drawImage(
 
@@ -396,25 +420,68 @@ async function scanText(){
 
         0,
         0,
-        width,
-        height
+        width * 2,
+        height * 2
 
     );
 
+    // IMAGE PROCESSING
+
+    let imageData =
+    ctx.getImageData(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    let data = imageData.data;
+
+    // BLACK & WHITE FILTER
+
+    for(let i=0; i<data.length; i+=4){
+
+        let avg = (
+
+            data[i] +
+            data[i+1] +
+            data[i+2]
+
+        ) / 3;
+
+        let value = avg > 145 ? 255 : 0;
+
+        data[i] = value;
+        data[i+1] = value;
+        data[i+2] = value;
+
+    }
+
+    ctx.putImageData(imageData,0,0);
+
     document.getElementById("status").innerText =
-    "Scanning...";
+    "Scanning High Accuracy OCR...";
+
+    // OCR
 
     const result =
     await Tesseract.recognize(
 
         canvas,
 
-        'eng'
+        'eng',
+
+        {
+            logger:m=>console.log(m)
+        }
 
     );
 
+    let cleanText =
+    result.data.text.trim();
+
     document.getElementById("resultText").value =
-    result.data.text;
+    cleanText;
 
     document.getElementById("status").innerText =
     "Scan Completed";
@@ -422,7 +489,7 @@ async function scanText(){
 }
 
 
-// SAVE HISTORY
+// SAVE SCAN
 
 function saveScan(){
 
@@ -440,7 +507,15 @@ function saveScan(){
 
     let duplicate =
     scanHistory.find(
-        item => item.text === text
+
+        item =>
+
+        item.text.toLowerCase().trim()
+
+        ===
+
+        text.toLowerCase().trim()
+
     );
 
     if(duplicate){
@@ -460,11 +535,14 @@ function saveScan(){
 
     };
 
-    scanHistory.push(data);
+    scanHistory.unshift(data);
 
     localStorage.setItem(
+
         "scanHistory",
+
         JSON.stringify(scanHistory)
+
     );
 
     loadHistory();
@@ -496,7 +574,8 @@ function loadHistory(){
 
         <b>Date:</b> ${item.date}<br><br>
 
-        <b>Text:</b><br>
+        <b>Text:</b><br><br>
+
         ${item.text}<br><br>
 
         <button onclick="deleteScan(${index})">
@@ -512,15 +591,18 @@ function loadHistory(){
 }
 
 
-// DELETE HISTORY
+// DELETE
 
 function deleteScan(index){
 
     scanHistory.splice(index,1);
 
     localStorage.setItem(
+
         "scanHistory",
+
         JSON.stringify(scanHistory)
+
     );
 
     loadHistory();
@@ -546,14 +628,21 @@ function exportExcel(){
     XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(
+
         workbook,
+
         worksheet,
+
         "OCR History"
+
     );
 
     XLSX.writeFile(
+
         workbook,
+
         "OCR_History.xlsx"
+
     );
 
 }
@@ -587,5 +676,4 @@ window.onload = ()=>{
 </script>
 
 </body>
-
 </html>
