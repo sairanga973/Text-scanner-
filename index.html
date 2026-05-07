@@ -7,10 +7,10 @@
 
 <title>OCR Scanner</title>
 
-<!-- OCR Library -->
+<!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-<!-- Excel Export Library -->
+<!-- Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
@@ -24,7 +24,7 @@ body{
 }
 
 .container{
-    max-width:800px;
+    max-width:900px;
     margin:auto;
 }
 
@@ -35,35 +35,50 @@ body{
     margin-top:20px;
 }
 
-input{
-    width:100%;
-    padding:12px;
-    margin-top:10px;
-    border:none;
-    border-radius:8px;
-}
-
 button{
     padding:12px 20px;
-    margin-top:10px;
     border:none;
     border-radius:8px;
     background:#2563eb;
     color:white;
     cursor:pointer;
+    margin-top:10px;
 }
 
 button:hover{
     background:#1d4ed8;
 }
 
-textarea{
+input, textarea{
     width:100%;
-    height:180px;
-    margin-top:15px;
-    border-radius:10px;
-    padding:10px;
+    padding:12px;
     border:none;
+    border-radius:8px;
+    margin-top:10px;
+}
+
+textarea{
+    height:180px;
+}
+
+video{
+    width:100%;
+    border-radius:12px;
+    margin-top:15px;
+}
+
+canvas{
+    display:none;
+}
+
+#selectionBox{
+    position:absolute;
+    border:3px solid red;
+    pointer-events:none;
+}
+
+.camera-container{
+    position:relative;
 }
 
 .history-item{
@@ -71,10 +86,6 @@ textarea{
     padding:15px;
     border-radius:10px;
     margin-top:10px;
-}
-
-h1,h2{
-    margin-top:0;
 }
 
 </style>
@@ -87,7 +98,7 @@ h1,h2{
 
 <h1>OCR Scanner</h1>
 
-<!-- LOGIN SECTION -->
+<!-- LOGIN -->
 
 <div class="card" id="loginSection">
 
@@ -96,37 +107,62 @@ h1,h2{
 <input 
 type="email" 
 id="email" 
-placeholder="Enter your email">
+placeholder="Enter Email">
 
 <button onclick="login()">Login</button>
 
 </div>
 
-<!-- APP SECTION -->
+<!-- APP -->
 
 <div id="appSection" style="display:none;">
 
 <div class="card">
 
-<h2>Upload Image</h2>
+<h2>Live Camera OCR</h2>
 
-<input 
-type="file" 
-id="imageInput" 
-accept="image/*">
+<button onclick="startCamera()">
+Start Camera
+</button>
 
-<button onclick="scanText()">Scan Text</button>
+<div class="camera-container">
+
+<video id="video" autoplay playsinline></video>
+
+<div id="selectionBox"></div>
+
+</div>
+
+<p>
+Select scanning range using sliders
+</p>
+
+<label>Width</label>
+<input type="range" id="rangeWidth" min="100" max="600" value="300">
+
+<label>Height</label>
+<input type="range" id="rangeHeight" min="100" max="400" value="150">
+
+<button onclick="scanSelectedArea()">
+Scan Selected Area
+</button>
 
 <p id="loading"></p>
 
 <textarea 
-id="resultText" 
-placeholder="Scanned text will appear here">
+id="resultText"
+placeholder="Scanned text appears here">
 </textarea>
 
-<button onclick="saveScan()">Save Scan</button>
+<button onclick="saveScan()">
+Save Scan
+</button>
 
-<button onclick="exportExcel()">Export Excel</button>
+<button onclick="exportExcel()">
+Export Excel
+</button>
+
+<canvas id="canvas"></canvas>
 
 </div>
 
@@ -134,7 +170,7 @@ placeholder="Scanned text will appear here">
 
 <div class="card">
 
-<h2>Scan History</h2>
+<h2>History</h2>
 
 <div id="history"></div>
 
@@ -148,12 +184,14 @@ placeholder="Scanned text will appear here">
 
 let currentUser = "";
 
+let stream;
+
 let scanHistory = JSON.parse(
     localStorage.getItem("scanHistory")
 ) || [];
 
 
-// LOGIN FUNCTION
+// LOGIN
 
 function login(){
 
@@ -161,7 +199,7 @@ function login(){
 
     if(email === ""){
 
-        alert("Please enter email");
+        alert("Enter Email");
 
         return;
     }
@@ -178,29 +216,110 @@ function login(){
 }
 
 
-// OCR FUNCTION
+// START CAMERA
 
-async function scanText(){
+async function startCamera(){
 
-    const file = document.getElementById("imageInput").files[0];
+    try{
 
-    if(!file){
+        stream = await navigator.mediaDevices.getUserMedia({
+            video:true
+        });
 
-        alert("Please upload image");
+        document.getElementById("video").srcObject = stream;
 
-        return;
+        updateSelectionBox();
+
+    }catch(error){
+
+        alert("Camera access denied");
+
     }
+}
 
-    document.getElementById("loading").innerText = "Scanning...";
+
+// UPDATE SELECTION BOX
+
+function updateSelectionBox(){
+
+    let width = document.getElementById("rangeWidth").value;
+
+    let height = document.getElementById("rangeHeight").value;
+
+    let box = document.getElementById("selectionBox");
+
+    box.style.width = width + "px";
+
+    box.style.height = height + "px";
+
+    box.style.left = "50%";
+
+    box.style.top = "50%";
+
+    box.style.transform = "translate(-50%, -50%)";
+}
+
+
+// RANGE EVENTS
+
+document.getElementById("rangeWidth")
+.addEventListener("input", updateSelectionBox);
+
+document.getElementById("rangeHeight")
+.addEventListener("input", updateSelectionBox);
+
+
+// SCAN SELECTED AREA
+
+async function scanSelectedArea(){
+
+    const video = document.getElementById("video");
+
+    const canvas = document.getElementById("canvas");
+
+    const ctx = canvas.getContext("2d");
+
+    let width = parseInt(
+        document.getElementById("rangeWidth").value
+    );
+
+    let height = parseInt(
+        document.getElementById("rangeHeight").value
+    );
+
+    canvas.width = width;
+
+    canvas.height = height;
+
+    let startX = (video.videoWidth / 2) - (width / 2);
+
+    let startY = (video.videoHeight / 2) - (height / 2);
+
+    ctx.drawImage(
+        video,
+        startX,
+        startY,
+        width,
+        height,
+        0,
+        0,
+        width,
+        height
+    );
+
+    document.getElementById("loading").innerText =
+    "Scanning Selected Area...";
 
     const result = await Tesseract.recognize(
-        file,
+        canvas,
         'eng'
     );
 
-    document.getElementById("resultText").value = result.data.text;
+    document.getElementById("resultText").value =
+    result.data.text;
 
-    document.getElementById("loading").innerText = "Scan Completed";
+    document.getElementById("loading").innerText =
+    "Scan Completed";
 }
 
 
@@ -217,20 +336,18 @@ function saveScan(){
         return;
     }
 
-    // DUPLICATE CHECK
-
     let duplicate = scanHistory.find(
         item => item.text === text
     );
 
     if(duplicate){
 
-        alert("Duplicate text already exists");
+        alert("Duplicate already exists");
 
         return;
     }
 
-    let scanData = {
+    let data = {
 
         user: currentUser,
 
@@ -240,7 +357,7 @@ function saveScan(){
 
     };
 
-    scanHistory.push(scanData);
+    scanHistory.push(data);
 
     localStorage.setItem(
         "scanHistory",
@@ -249,7 +366,7 @@ function saveScan(){
 
     loadHistory();
 
-    alert("Scan saved");
+    alert("Saved");
 }
 
 
@@ -289,7 +406,7 @@ function loadHistory(){
 }
 
 
-// DELETE HISTORY
+// DELETE
 
 function deleteScan(index){
 
@@ -304,20 +421,22 @@ function deleteScan(index){
 }
 
 
-// EXPORT TO EXCEL
+// EXPORT EXCEL
 
 function exportExcel(){
 
     if(scanHistory.length === 0){
 
-        alert("No history available");
+        alert("No history");
 
         return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(scanHistory);
+    const worksheet =
+    XLSX.utils.json_to_sheet(scanHistory);
 
-    const workbook = XLSX.utils.book_new();
+    const workbook =
+    XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(
         workbook,
@@ -336,15 +455,18 @@ function exportExcel(){
 
 window.onload = ()=>{
 
-    let savedUser = localStorage.getItem("ocrUser");
+    let savedUser =
+    localStorage.getItem("ocrUser");
 
     if(savedUser){
 
         currentUser = savedUser;
 
-        document.getElementById("loginSection").style.display = "none";
+        document.getElementById("loginSection")
+        .style.display = "none";
 
-        document.getElementById("appSection").style.display = "block";
+        document.getElementById("appSection")
+        .style.display = "block";
 
         loadHistory();
     }
