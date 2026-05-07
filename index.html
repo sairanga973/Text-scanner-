@@ -14,6 +14,13 @@
 <!-- Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
+<!-- Cropper -->
+<link 
+rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
 <style>
 
 body{
@@ -64,14 +71,10 @@ button:hover{
     background:#1d4ed8;
 }
 
-video,img{
-    width:100%;
-    border-radius:12px;
+img{
+    max-width:100%;
     margin-top:15px;
-}
-
-canvas{
-    display:none;
+    border-radius:12px;
 }
 
 .history-item{
@@ -115,33 +118,24 @@ Login
 
 <div class="card">
 
-<h2>Camera OCR</h2>
+<h2>Select Image</h2>
 
-<button onclick="startCamera()">
-Open Camera
+<input
+type="file"
+accept="image/*"
+capture="environment"
+id="imageInput">
+
+<img id="previewImage">
+
+<br>
+
+<button onclick="cropImage()">
+Crop Image
 </button>
-
-<button onclick="switchCamera()">
-Switch Camera
-</button>
-
-<video
-id="video"
-autoplay
-playsinline
-muted>
-</video>
-
-<button onclick="capturePhoto()">
-Capture Photo
-</button>
-
-<img
-id="capturedImage"
-style="display:none;">
 
 <button onclick="scanText()">
-Scan Captured Photo
+Scan Text
 </button>
 
 <p id="status"></p>
@@ -158,8 +152,6 @@ Save Scan
 <button onclick="exportExcel()">
 Export Excel
 </button>
-
-<canvas id="canvas"></canvas>
 
 </div>
 
@@ -181,22 +173,16 @@ Export Excel
 
 let currentUser = "";
 
-let currentFacingMode = "environment";
+let cropper;
 
-let currentStream = null;
+let croppedCanvas;
 
 let scanHistory = JSON.parse(
     localStorage.getItem("scanHistory")
 ) || [];
 
-const video =
-document.getElementById("video");
-
-const canvas =
-document.getElementById("canvas");
-
-const capturedImage =
-document.getElementById("capturedImage");
+const previewImage =
+document.getElementById("previewImage");
 
 
 // LOGIN
@@ -228,105 +214,71 @@ function login(){
 }
 
 
-// START CAMERA
+// IMAGE SELECT
 
-async function startCamera(){
+document.getElementById("imageInput")
+.addEventListener("change", function(e){
 
-    try{
+    const file = e.target.files[0];
 
-        if(currentStream){
+    if(!file) return;
 
-            currentStream.getTracks().forEach(track=>{
-                track.stop();
-            });
+    const reader = new FileReader();
+
+    reader.onload = function(event){
+
+        previewImage.src = event.target.result;
+
+        // DESTROY OLD CROPPER
+
+        if(cropper){
+
+            cropper.destroy();
 
         }
 
-        currentStream =
-        await navigator.mediaDevices.getUserMedia({
+        // NEW CROPPER
 
-            video:{
-                facingMode: currentFacingMode,
-                width:{ ideal:1920 },
-                height:{ ideal:1080 }
-            },
+        cropper = new Cropper(previewImage,{
 
-            audio:false
+            viewMode:1,
+            autoCropArea:1
 
         });
 
-        video.srcObject = currentStream;
-
-        await video.play();
-
-        document.getElementById("status").innerText =
-
-        currentFacingMode === "environment"
-
-        ? "Back Camera Started"
-
-        : "Front Camera Started";
-
-    }catch(error){
-
-        console.log(error);
-
-        alert("Camera access failed");
-
     }
 
-}
+    reader.readAsDataURL(file);
+
+});
 
 
-// SWITCH CAMERA
+// CROP IMAGE
 
-function switchCamera(){
+function cropImage(){
 
-    if(currentFacingMode === "environment"){
+    if(!cropper){
 
-        currentFacingMode = "user";
+        alert("Select image first");
 
-    }else{
-
-        currentFacingMode = "environment";
-
+        return;
     }
 
-    startCamera();
+    croppedCanvas =
+    cropper.getCroppedCanvas({
 
-}
+        width:1500,
+        height:1500
 
+    });
 
-// CAPTURE PHOTO
+    previewImage.src =
+    croppedCanvas.toDataURL();
 
-function capturePhoto(){
-
-    canvas.width = video.videoWidth;
-
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-
-    ctx.drawImage(
-
-        video,
-
-        0,
-        0,
-        canvas.width,
-        canvas.height
-
-    );
-
-    const imageData =
-    canvas.toDataURL("image/png");
-
-    capturedImage.src = imageData;
-
-    capturedImage.style.display = "block";
+    cropper.destroy();
 
     document.getElementById("status").innerText =
-    "Photo Captured";
+    "Image Cropped";
 
 }
 
@@ -335,9 +287,9 @@ function capturePhoto(){
 
 async function scanText(){
 
-    if(capturedImage.style.display === "none"){
+    if(!croppedCanvas){
 
-        alert("Capture photo first");
+        alert("Crop image first");
 
         return;
     }
@@ -348,7 +300,7 @@ async function scanText(){
     const result =
     await Tesseract.recognize(
 
-        capturedImage,
+        croppedCanvas,
 
         'eng',
 
@@ -399,7 +351,7 @@ function saveScan(){
 
     if(duplicate){
 
-        alert("Duplicate text already exists");
+        alert("Duplicate already exists");
 
         return;
     }
